@@ -100,7 +100,7 @@ func WithCacheSize(size int) RecorderOption {
 	return func(r *Recorder) { r.maxCacheSize = size }
 }
 
-// NewRecorder creates a new JSONL recorder.
+// NewRecorder creates a new JSONL recorder that writes to a file.
 func NewRecorder(path string, opts ...RecorderOption) (*Recorder, error) {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_SYNC, 0644)
 	if err != nil {
@@ -112,7 +112,7 @@ func NewRecorder(path string, opts ...RecorderOption) (*Recorder, error) {
 		encoder:      json.NewEncoder(file),
 		logLevel:     LogLevelBasic,
 		recordCache:  make([]Record, 0, 1000),
-		maxCacheSize: 1000, // Keep last 1000 records for initial load
+		maxCacheSize: 1000,
 	}
 
 	for _, opt := range opts {
@@ -122,21 +122,41 @@ func NewRecorder(path string, opts ...RecorderOption) (*Recorder, error) {
 	return r, nil
 }
 
+// NewMemoryRecorder creates an in-memory recorder (no file output).
+func NewMemoryRecorder(opts ...RecorderOption) *Recorder {
+	r := &Recorder{
+		logLevel:     LogLevelBasic,
+		recordCache:  make([]Record, 0, 1000),
+		maxCacheSize: 1000,
+	}
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
+}
+
 // Close closes the recorder file.
 func (r *Recorder) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.file.Close()
+	if r.file != nil {
+		return r.file.Close()
+	}
+	return nil
 }
 
 // write writes a record to the file (thread-safe, sync write).
 func (r *Recorder) write(rec Record) error {
-	r.mu.Lock()
-	if err := r.encoder.Encode(rec); err != nil {
+	if r.file != nil {
+		r.mu.Lock()
+		if err := r.encoder.Encode(rec); err != nil {
+			r.mu.Unlock()
+			return err
+		}
 		r.mu.Unlock()
-		return err
 	}
-	r.mu.Unlock()
 
 	r.records.Add(1)
 
@@ -427,8 +447,10 @@ func (r *Recorder) WriteTo(w io.Writer) (int64, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Flush and sync
-	return 0, r.file.Sync()
+	if r.file != nil {
+		return 0, r.file.Sync()
+	}
+	return 0, nil
 }
 
 // GetRecentRecords returns the most recent records (for initial frontend load).

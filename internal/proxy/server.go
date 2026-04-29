@@ -90,14 +90,12 @@ func NewServer(config types.Config) (*Server, error) {
 
 		fmt.Printf("[INFO] HTTP parsing enabled (log level: %d)\n", config.HTTPLogLevel)
 
-		// Create recorder if file path is configured
 		if config.HTTPRecordFile != "" {
 			var err error
 			recorder, err = httpstream.NewRecorder(
 				config.HTTPRecordFile,
 				httpstream.WithRecorderLogLevel(httpLogLevel),
 				httpstream.WithOnRecord(func(rec httpstream.Record) {
-					// Broadcast to WebSocket clients
 					hub.Broadcast(rec)
 				}),
 				httpstream.WithCacheSize(10000),
@@ -105,9 +103,17 @@ func NewServer(config types.Config) (*Server, error) {
 			if err != nil {
 				return nil, fmt.Errorf("create HTTP recorder: %w", err)
 			}
-			interceptorOpts = append(interceptorOpts, mitm.WithRecorder(recorder))
 			fmt.Printf("[INFO] HTTP recording enabled: %s\n", config.HTTPRecordFile)
+		} else {
+			recorder = httpstream.NewMemoryRecorder(
+				httpstream.WithRecorderLogLevel(httpLogLevel),
+				httpstream.WithOnRecord(func(rec httpstream.Record) {
+					hub.Broadcast(rec)
+				}),
+				httpstream.WithCacheSize(10000),
+			)
 		}
+		interceptorOpts = append(interceptorOpts, mitm.WithRecorder(recorder))
 	}
 
 	// Create interceptor

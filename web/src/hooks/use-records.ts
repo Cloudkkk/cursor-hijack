@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { Record, SessionInfo } from '@/lib/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
+const API_BASE = '';
 
 export function useRecords() {
   const [records, setRecords] = useState<Record[]>([]);
