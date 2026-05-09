@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect, memo, useCallback } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Record, getRecordColor, formatTimestamp, getRecordTitle } from '@/lib/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -16,7 +16,6 @@ import {
   Circle
 } from 'lucide-react';
 
-// Get icon component for record type
 function RecordIcon({ record }: { record: Record }) {
   const className = cn('w-4 h-4', getRecordColor(record));
   
@@ -26,7 +25,6 @@ function RecordIcon({ record }: { record: Record }) {
     case 'response':
       return <ArrowLeft className={className} />;
     case 'grpc':
-      // Use arrow based on direction
       if (record.direction === 'C2S') {
         return <ArrowRight className={className} />;
       } else if (record.direction === 'S2C') {
@@ -36,7 +34,6 @@ function RecordIcon({ record }: { record: Record }) {
     case 'sse':
       return <Zap className={className} />;
     case 'body':
-      // Use arrow based on direction for body too
       if (record.direction === 'C2S') {
         return <ArrowRight className={className} />;
       } else if (record.direction === 'S2C') {
@@ -64,12 +61,10 @@ export const RecordList = memo(function RecordList({
   const [localSearch, setLocalSearch] = useState('');
   const [matchIndex, setMatchIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
-  // Filter records by local search
   const { filteredRecords, matchedIndices } = useMemo(() => {
     if (!localSearch.trim()) {
-      return { filteredRecords: records, matchedIndices: [] };
+      return { filteredRecords: records, matchedIndices: [] as number[] };
     }
     
     const query = localSearch.toLowerCase();
@@ -94,21 +89,28 @@ export const RecordList = memo(function RecordList({
     return { filteredRecords: records, matchedIndices: matched };
   }, [records, localSearch]);
 
+  const matchedSet = useMemo(() => new Set(matchedIndices), [matchedIndices]);
+  const currentMatchIdx = matchedIndices.length > 0
+    ? matchedIndices[matchIndex % matchedIndices.length]
+    : -1;
+
+  const virtualizer = useVirtualizer({
+    count: filteredRecords.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 72,
+    overscan: 10,
+    measureElement: useCallback((el: Element) => el.getBoundingClientRect().height, []),
+  });
+
   // Scroll to matched item
   useEffect(() => {
-    if (matchedIndices.length > 0 && localSearch) {
-      const targetIdx = matchedIndices[matchIndex % matchedIndices.length];
-      const record = records[targetIdx];
-      const key = `${record.session}-${record.index}`;
-      const element = itemRefs.current.get(key);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        onSelectRecord(record);
-      }
+    if (matchedIndices.length > 0 && localSearch && currentMatchIdx >= 0) {
+      virtualizer.scrollToIndex(currentMatchIdx, { align: 'center', behavior: 'smooth' });
+      const record = records[currentMatchIdx];
+      if (record) onSelectRecord(record);
     }
-  }, [matchIndex, matchedIndices, localSearch, records, onSelectRecord]);
+  }, [matchIndex, matchedIndices, localSearch, currentMatchIdx, records, onSelectRecord, virtualizer]);
 
-  // Handle search input key events
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -120,7 +122,6 @@ export const RecordList = memo(function RecordList({
 
   return (
     <div className="flex flex-col h-full overflow-hidden border-r">
-      {/* Search bar */}
       <div className="p-2 border-b flex-shrink-0">
         <div className="relative">
           <Input
@@ -141,57 +142,66 @@ export const RecordList = memo(function RecordList({
         </div>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0" ref={scrollRef}>
-        <div className="divide-y">
-          {filteredRecords.map((record, idx) => {
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
+        <div
+          className="relative"
+          style={{ height: virtualizer.getTotalSize() }}
+        >
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            const record = filteredRecords[virtualItem.index];
             const isSelected =
               selectedRecord?.session === record.session &&
               selectedRecord?.index === record.index;
-            const isMatched = localSearch && matchedIndices.includes(idx);
-            const isCurrentMatch = isMatched && matchedIndices[matchIndex % matchedIndices.length] === idx;
-            const key = `${record.session}-${record.index}`;
+            const isMatched = localSearch && matchedSet.has(virtualItem.index);
+            const isCurrentMatch = virtualItem.index === currentMatchIdx;
 
             return (
-              <button
-                key={`${key}-${idx}`}
-                ref={(el) => {
-                  if (el) itemRefs.current.set(key, el);
+              <div
+                key={`${record.session}-${record.index}`}
+                ref={virtualizer.measureElement}
+                data-index={virtualItem.index}
+                className="absolute left-0 right-0"
+                style={{
+                  transform: `translateY(${virtualItem.start}px)`,
                 }}
-                onClick={() => onSelectRecord(record)}
-                className={cn(
-                  'w-full text-left px-3 py-2 transition-colors',
-                  isSelected ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
-                  isCurrentMatch && 'ring-2 ring-yellow-400 ring-inset',
-                  isMatched && !isCurrentMatch && 'bg-yellow-50 dark:bg-yellow-900/20'
-                )}
               >
-                <div className="flex items-center gap-2">
-                  <RecordIcon record={record} />
-                  <span className="text-xs text-gray-500 dark:text-gray-500 font-mono">
-                    #{record.index}
-                  </span>
-                  <Badge variant="outline" className="text-xs">
-                    {record.type}
-                  </Badge>
-                  {record.grpc_streaming && (
-                    <Badge variant="secondary" className="text-xs">
-                      stream
+                <button
+                  className={cn(
+                    'w-full text-left px-3 py-2 transition-colors border-b',
+                    isSelected ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
+                    isCurrentMatch && 'ring-2 ring-yellow-400 ring-inset',
+                    isMatched && !isCurrentMatch && 'bg-yellow-50 dark:bg-yellow-900/20'
+                  )}
+                  onClick={() => onSelectRecord(record)}
+                >
+                  <div className="flex items-center gap-2">
+                    <RecordIcon record={record} />
+                    <span className="text-xs text-gray-500 dark:text-gray-500 font-mono">
+                      #{record.index}
+                    </span>
+                    <Badge variant="outline" className="text-xs">
+                      {record.type}
                     </Badge>
-                  )}
-                </div>
-                <div className="mt-1 text-sm truncate">
-                  {getRecordTitle(record)}
-                </div>
-                <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2">
-                  <span>{formatTimestamp(record.ts)}</span>
-                  {record.size !== undefined && record.size > 0 && (
-                    <span>· {record.size}B</span>
-                  )}
-                  {record.grpc_frame_index !== undefined && (
-                    <span>· frame {record.grpc_frame_index}</span>
-                  )}
-                </div>
-              </button>
+                    {record.grpc_streaming && (
+                      <Badge variant="secondary" className="text-xs">
+                        stream
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-1 text-sm truncate">
+                    {getRecordTitle(record)}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                    <span>{formatTimestamp(record.ts)}</span>
+                    {record.size !== undefined && record.size > 0 && (
+                      <span>· {record.size}B</span>
+                    )}
+                    {record.grpc_frame_index !== undefined && (
+                      <span>· frame {record.grpc_frame_index}</span>
+                    )}
+                  </div>
+                </button>
+              </div>
             );
           })}
 
@@ -201,19 +211,7 @@ export const RecordList = memo(function RecordList({
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
-}, (prevProps, nextProps) => {
-  // Custom comparison - re-render only when these change
-  const recordsEqual = prevProps.records.length === nextProps.records.length &&
-    (prevProps.records.length === 0 || 
-      (prevProps.records[prevProps.records.length - 1]?.session === nextProps.records[nextProps.records.length - 1]?.session &&
-       prevProps.records[prevProps.records.length - 1]?.index === nextProps.records[nextProps.records.length - 1]?.index));
-  
-  const selectedEqual = 
-    prevProps.selectedRecord?.session === nextProps.selectedRecord?.session &&
-    prevProps.selectedRecord?.index === nextProps.selectedRecord?.index;
-  
-  return recordsEqual && selectedEqual && prevProps.onSelectRecord === nextProps.onSelectRecord;
 });

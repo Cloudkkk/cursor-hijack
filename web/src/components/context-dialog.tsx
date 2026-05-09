@@ -35,9 +35,43 @@ interface ParsedFrame {
   raw: string;
 }
 
+function containsBinary(s: string): boolean {
+  // eslint-disable-next-line no-control-regex
+  return /[\x00-\x08\x0e-\x1f]/.test(s.slice(0, 1024));
+}
+
+function sanitizeString(s: string): string {
+  if (!containsBinary(s)) return s;
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/[\x00-\x08\x0e-\x1f]/g, '\uFFFD');
+}
+
+function sanitizeValue(val: unknown): unknown {
+  if (val === null || val === undefined) return val;
+  if (typeof val === 'string') {
+    if (containsBinary(val)) return '[binary data]';
+    return val;
+  }
+  if (Array.isArray(val)) return val.map(sanitizeValue);
+  if (typeof val === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val)) {
+      out[k] = sanitizeValue(v);
+    }
+    return out;
+  }
+  return val;
+}
+
 function tryDecodeBlob(blobDataBase64: string): { decoded: string; parsed: unknown } | null {
   try {
-    const decoded = atob(blobDataBase64);
+    const bytes = Uint8Array.from(atob(blobDataBase64), (c) => c.charCodeAt(0));
+    const decoded = new TextDecoder('utf-8').decode(bytes);
+
+    if (containsBinary(decoded)) {
+      return null;
+    }
+
     try {
       const parsed = JSON.parse(decoded);
       return { decoded, parsed };
@@ -54,6 +88,9 @@ function extractContextFrames(records: RecordEntry[]): ParsedFrame[] {
 
   for (const record of records) {
     if (record.type !== 'grpc' || !record.grpc_data) continue;
+
+    // Skip records where grpc_data itself contains binary
+    if (containsBinary(record.grpc_data)) continue;
 
     let data: { [key: string]: unknown };
     try {
@@ -73,6 +110,7 @@ function extractContextFrames(records: RecordEntry[]): ParsedFrame[] {
     const spanContext = kvMsg.spanContext as { [key: string]: string } | undefined;
 
     const blobResult = blobData ? tryDecodeBlob(blobData) : null;
+    const parsedContent = blobResult?.parsed ?? blobResult?.decoded ?? null;
 
     frames.push({
       frameIndex: record.grpc_frame_index ?? 0,
@@ -83,7 +121,7 @@ function extractContextFrames(records: RecordEntry[]): ParsedFrame[] {
       spanId: spanContext?.spanId,
       blobId: blobId,
       blobDataSize: blobData ? blobData.length : 0,
-      parsed: blobResult?.parsed ?? blobResult?.decoded ?? null,
+      parsed: parsedContent ? sanitizeValue(parsedContent) : null,
       raw: blobData || '',
     });
   }
@@ -92,22 +130,22 @@ function extractContextFrames(records: RecordEntry[]): ParsedFrame[] {
 }
 
 function stringifyContent(content: unknown): string {
-  if (typeof content === 'string') return content;
+  if (typeof content === 'string') return sanitizeString(content);
   if (Array.isArray(content)) {
     return content
       .map((part) => {
-        if (typeof part === 'string') return part;
+        if (typeof part === 'string') return sanitizeString(part);
         if (typeof part === 'object' && part !== null && 'text' in part) {
-          return (part as { text: string }).text;
+          return sanitizeString(String((part as { text: string }).text));
         }
-        try { return JSON.stringify(part); } catch { return String(part); }
+        try { return sanitizeString(JSON.stringify(part)); } catch { return '[unrenderable]'; }
       })
       .join('\n');
   }
   if (typeof content === 'object' && content !== null) {
-    try { return JSON.stringify(content, null, 2); } catch { /* fall through */ }
+    try { return sanitizeString(JSON.stringify(content, null, 2)); } catch { /* fall through */ }
   }
-  return String(content ?? '');
+  return sanitizeString(String(content ?? ''));
 }
 
 function extractConversation(frames: ParsedFrame[]): ParsedMessage[] {
@@ -222,12 +260,17 @@ function RawFrameCard({ frame }: { frame: ParsedFrame }) {
   const displayData = useMemo(() => {
     if (frame.parsed) {
       try {
-        return JSON.stringify(frame.parsed, null, 2);
+        const json = JSON.stringify(frame.parsed, null, 2);
+        return sanitizeString(json);
       } catch {
-        return String(frame.parsed);
+        return sanitizeString(String(frame.parsed));
       }
     }
-    return frame.raw || '(empty)';
+    if (frame.raw) {
+      if (containsBinary(frame.raw)) return `[binary base64, ${frame.raw.length} chars]`;
+      return frame.raw;
+    }
+    return '(empty)';
   }, [frame]);
 
   return (
@@ -272,7 +315,15 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
       return conversation.map((m) => `[${m.role}]\n${m.content}`).join('\n\n---\n\n');
     }
     return frames.map((f) => {
-      const data = f.parsed ? JSON.stringify(f.parsed, null, 2) : f.raw;
+      let data: string;
+      if (f.parsed) {
+        try { data = sanitizeString(JSON.stringify(f.parsed, null, 2)); }
+        catch { data = '[parse error]'; }
+      } else if (f.raw && containsBinary(f.raw)) {
+        data = `[binary base64, ${f.raw.length} chars]`;
+      } else {
+        data = f.raw || '(empty)';
+      }
       return `[Frame #${f.frameIndex} ${f.direction}]\n${data}`;
     }).join('\n\n---\n\n');
   }, [viewMode, conversation, frames]);

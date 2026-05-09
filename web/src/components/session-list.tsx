@@ -1,8 +1,8 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useRef, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { SessionInfo, formatTimestamp } from '@/lib/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { ArrowUp, ArrowDown, MessageSquareText } from 'lucide-react';
 
@@ -13,7 +13,6 @@ interface SessionListProps {
   onViewContext?: (sessionId: string) => void;
 }
 
-// Format bytes to human readable
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0';
   if (bytes < 1024) return `${bytes}B`;
@@ -21,13 +20,11 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)}M`;
 }
 
-// Extract preview text from gRPC JSON data
 function getPreviewText(grpcData: string | undefined, maxLen: number = 80): string | null {
   if (!grpcData) return null;
   
   try {
     const data = JSON.parse(grpcData);
-    // Try to find meaningful fields for preview
     const previewFields: string[] = [];
     
     for (const [key, value] of Object.entries(data)) {
@@ -44,17 +41,121 @@ function getPreviewText(grpcData: string | undefined, maxLen: number = 80): stri
       
       previewFields.push(`${key}: ${valueStr}`);
       
-      // Stop if we have enough
       if (previewFields.join(', ').length > maxLen) break;
     }
     
     const preview = previewFields.join(', ');
     return preview.length > maxLen ? preview.substring(0, maxLen) + '...' : preview;
   } catch {
-    // If not valid JSON, just truncate
     return grpcData.length > maxLen ? grpcData.substring(0, maxLen) + '...' : grpcData;
   }
 }
+
+const SessionItem = memo(function SessionItem({
+  session,
+  isSelected,
+  onSelect,
+  onViewContext,
+}: {
+  session: SessionInfo;
+  isSelected: boolean;
+  onSelect: () => void;
+  onViewContext?: (sessionId: string) => void;
+}) {
+  const methodDisplay = session.grpc_method
+    || (session.url ? session.url.split('/').pop() : null)
+    || 'unknown';
+  const serviceDisplay = session.grpc_service
+    || (session.url ? session.url.split('/').slice(-2, -1)[0] : null)
+    || session.host;
+
+  return (
+    <div
+      className={cn(
+        'w-full text-left px-3 py-2.5 rounded-md text-sm transition-colors border',
+        isSelected
+          ? 'bg-primary text-primary-foreground border-primary'
+          : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700'
+      )}
+    >
+      <div
+        className="cursor-pointer"
+        role="button"
+        tabIndex={0}
+        onClick={onSelect}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(); }}
+      >
+        <div className="font-semibold truncate text-sm" title={methodDisplay}>
+          {methodDisplay}
+        </div>
+        <div className={cn(
+          'truncate text-xs mt-0.5',
+          isSelected ? 'opacity-80' : 'text-gray-600 dark:text-gray-400'
+        )} title={serviceDisplay}>
+          {serviceDisplay}
+        </div>
+        <div className={cn(
+          'mt-1.5 flex items-center gap-2 text-xs',
+          isSelected ? 'opacity-90' : 'text-gray-600 dark:text-gray-400'
+        )}>
+          <span>{session.record_count} frames</span>
+          <span>·</span>
+          <span>{formatTimestamp(session.first_ts)}</span>
+        </div>
+        <div className="mt-1 flex items-center gap-3 text-xs font-medium">
+          <span className={cn(
+            'flex items-center gap-0.5',
+            isSelected ? 'text-blue-200' : 'text-blue-600'
+          )}>
+            <ArrowUp className="w-3 h-3" />
+            {formatBytes(session.request_size)}
+          </span>
+          <span className={cn(
+            'flex items-center gap-0.5',
+            isSelected ? 'text-green-200' : 'text-green-600'
+          )}>
+            <ArrowDown className="w-3 h-3" />
+            {formatBytes(session.response_size)}
+          </span>
+        </div>
+        <div className={cn(
+          'mt-1 truncate text-xs',
+          isSelected ? 'opacity-70' : 'text-gray-500 dark:text-gray-500'
+        )} title={session.host}>
+          {session.host}
+        </div>
+        {session.grpc_preview && (
+          <div className={cn(
+            'mt-2 px-2 py-1.5 rounded text-[11px] font-mono leading-relaxed',
+            isSelected
+              ? 'bg-white/10 text-white/80'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+          )}>
+            <div className="line-clamp-2 break-all">
+              {getPreviewText(session.grpc_preview, 100)}
+            </div>
+          </div>
+        )}
+      </div>
+      {onViewContext && (
+        <button
+          type="button"
+          className={cn(
+            'mt-1.5 h-6 px-2 text-xs gap-1 inline-flex items-center rounded-md hover:bg-accent transition-colors',
+            isSelected ? 'text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/10' : 'text-muted-foreground hover:text-foreground'
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewContext(session.id);
+          }}
+        >
+          <MessageSquareText className="w-3 h-3" />
+          View Context
+        </button>
+      )}
+    </div>
+  );
+});
 
 export const SessionList = memo(function SessionList({
   sessions,
@@ -62,143 +163,81 @@ export const SessionList = memo(function SessionList({
   onSelectSession,
   onViewContext,
 }: SessionListProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // +1 for the "All Calls" button at index 0
+  const virtualizer = useVirtualizer({
+    count: sessions.length + 1,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: useCallback((index: number) => {
+      if (index === 0) return 60;
+      const session = sessions[index - 1];
+      return session?.grpc_preview ? 200 : 160;
+    }, [sessions]),
+    overscan: 5,
+    measureElement: useCallback((el: Element) => el.getBoundingClientRect().height, []),
+  });
+
   return (
     <div className="flex flex-col h-full overflow-hidden border-r">
       <div className="p-3 border-b font-semibold text-sm bg-muted/50 flex-shrink-0">
         RPC Calls ({sessions.length})
       </div>
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="p-2 space-y-1">
-          {/* All calls option */}
-          <button
-            onClick={() => onSelectSession(null)}
-            className={cn(
-              'w-full text-left px-3 py-2 rounded-md text-sm transition-colors border',
-              selectedSession === null
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700'
-            )}
-          >
-            <div className="font-medium">All Calls</div>
-            <div className={cn(
-              'text-xs',
-              selectedSession === null ? 'opacity-80' : 'text-gray-600 dark:text-gray-400'
-            )}>
-              {sessions.reduce((acc, s) => acc + s.record_count, 0)} frames
-            </div>
-          </button>
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
+        <div
+          className="p-2 relative"
+          style={{ height: virtualizer.getTotalSize() }}
+        >
+          {virtualizer.getVirtualItems().map((virtualItem) => {
+            if (virtualItem.index === 0) {
+              return (
+                <div
+                  key="all-calls"
+                  ref={virtualizer.measureElement}
+                  data-index={virtualItem.index}
+                  className="absolute left-0 right-0 px-2 pb-1"
+                  style={{
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  <button
+                    onClick={() => onSelectSession(null)}
+                    className={cn(
+                      'w-full text-left px-3 py-2 rounded-md text-sm transition-colors border',
+                      selectedSession === null
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700'
+                    )}
+                  >
+                    <div className="font-medium">All Calls</div>
+                    <div className={cn(
+                      'text-xs',
+                      selectedSession === null ? 'opacity-80' : 'text-gray-600 dark:text-gray-400'
+                    )}>
+                      {sessions.reduce((acc, s) => acc + s.record_count, 0)} frames
+                    </div>
+                  </button>
+                </div>
+              );
+            }
 
-          {/* Individual RPC calls */}
-          {sessions.map((session) => {
-            const isSelected = selectedSession === session.id;
-            // Display method name or URL path
-            const methodDisplay = session.grpc_method 
-              || (session.url ? session.url.split('/').pop() : null)
-              || 'unknown';
-            const serviceDisplay = session.grpc_service 
-              || (session.url ? session.url.split('/').slice(-2, -1)[0] : null)
-              || session.host;
-
+            const session = sessions[virtualItem.index - 1];
             return (
               <div
                 key={session.id}
-                className={cn(
-                  'w-full text-left px-3 py-2.5 rounded-md text-sm transition-colors border',
-                  isSelected
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700'
-                )}
+                ref={virtualizer.measureElement}
+                data-index={virtualItem.index}
+                className="absolute left-0 right-0 px-2 pb-1"
+                style={{
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
               >
-                <div
-                  className="cursor-pointer"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onSelectSession(session.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectSession(session.id); }}
-                >
-                  {/* Main: method (primary) */}
-                  <div className="font-semibold truncate text-sm" title={methodDisplay}>
-                    {methodDisplay}
-                  </div>
-
-                  {/* Service (secondary) */}
-                  <div className={cn(
-                    'truncate text-xs mt-0.5',
-                    isSelected ? 'opacity-80' : 'text-gray-600 dark:text-gray-400'
-                  )} title={serviceDisplay}>
-                    {serviceDisplay}
-                  </div>
-
-                  {/* Record count + Time */}
-                  <div className={cn(
-                    'mt-1.5 flex items-center gap-2 text-xs',
-                    isSelected ? 'opacity-90' : 'text-gray-600 dark:text-gray-400'
-                  )}>
-                    <span>{session.record_count} frames</span>
-                    <span>·</span>
-                    <span>{formatTimestamp(session.first_ts)}</span>
-                  </div>
-
-                  {/* Sizes row */}
-                  <div className={cn(
-                    'mt-1 flex items-center gap-3 text-xs font-medium'
-                  )}>
-                    <span className={cn(
-                      'flex items-center gap-0.5',
-                      isSelected ? 'text-blue-200' : 'text-blue-600'
-                    )}>
-                      <ArrowUp className="w-3 h-3" />
-                      {formatBytes(session.request_size)}
-                    </span>
-                    <span className={cn(
-                      'flex items-center gap-0.5',
-                      isSelected ? 'text-green-200' : 'text-green-600'
-                    )}>
-                      <ArrowDown className="w-3 h-3" />
-                      {formatBytes(session.response_size)}
-                    </span>
-                  </div>
-
-                  {/* Host */}
-                  <div className={cn(
-                    'mt-1 truncate text-xs',
-                    isSelected ? 'opacity-70' : 'text-gray-500 dark:text-gray-500'
-                  )} title={session.host}>
-                    {session.host}
-                  </div>
-
-                  {/* gRPC Preview */}
-                  {session.grpc_preview && (
-                    <div className={cn(
-                      'mt-2 px-2 py-1.5 rounded text-[11px] font-mono leading-relaxed',
-                      isSelected 
-                        ? 'bg-white/10 text-white/80' 
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                    )}>
-                      <div className="line-clamp-2 break-all">
-                        {getPreviewText(session.grpc_preview, 100)}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* View Context button */}
-                {onViewContext && (
-                  <button
-                    type="button"
-                    className={cn(
-                      'mt-1.5 h-6 px-2 text-xs gap-1 inline-flex items-center rounded-md hover:bg-accent transition-colors',
-                      isSelected ? 'text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/10' : 'text-muted-foreground hover:text-foreground'
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onViewContext(session.id);
-                    }}
-                  >
-                    <MessageSquareText className="w-3 h-3" />
-                    View Context
-                  </button>
-                )}
+                <SessionItem
+                  session={session}
+                  isSelected={selectedSession === session.id}
+                  onSelect={() => onSelectSession(session.id)}
+                  onViewContext={onViewContext}
+                />
               </div>
             );
           })}
@@ -209,7 +248,7 @@ export const SessionList = memo(function SessionList({
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 });

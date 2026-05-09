@@ -1,13 +1,15 @@
 import { Record } from './types';
 
-export type WSCallback = (record: Record) => void;
+export type WSBatchCallback = (records: Record[]) => void;
 export type WSStatusCallback = (connected: boolean) => void;
 export type WSReconnectCallback = () => void;
+
+const BATCH_INTERVAL_MS = 200;
 
 export class WSClient {
   private ws: WebSocket | null = null;
   private url: string;
-  private onRecord: WSCallback;
+  private onBatch: WSBatchCallback;
   private onStatus: WSStatusCallback;
   private onReconnect?: WSReconnectCallback;
   private reconnectTimer: NodeJS.Timeout | null = null;
@@ -16,14 +18,17 @@ export class WSClient {
   private wasConnected = false;
   private reconnectAttempts = 0;
 
+  private buffer: Record[] = [];
+  private flushTimer: number | null = null;
+
   constructor(
-    url: string, 
-    onRecord: WSCallback, 
+    url: string,
+    onBatch: WSBatchCallback,
     onStatus: WSStatusCallback,
     onReconnect?: WSReconnectCallback
   ) {
     this.url = url;
-    this.onRecord = onRecord;
+    this.onBatch = onBatch;
     this.onStatus = onStatus;
     this.onReconnect = onReconnect;
   }
@@ -39,22 +44,22 @@ export class WSClient {
       this.ws.onopen = () => {
         console.log('WebSocket connected');
         this.onStatus(true);
-        
-        // If this is a reconnection (not first connect), trigger data recovery
+
         if (this.wasConnected && this.onReconnect) {
           console.log('Reconnected - recovering data...');
           this.onReconnect();
         }
-        
+
         this.wasConnected = true;
         this.reconnectDelay = 1000;
         this.reconnectAttempts = 0;
+        this.startFlushLoop();
       };
 
       this.ws.onmessage = (event) => {
         try {
           const record = JSON.parse(event.data) as Record;
-          this.onRecord(record);
+          this.buffer.push(record);
         } catch (e) {
           console.error('Failed to parse WebSocket message:', e);
         }
@@ -63,6 +68,8 @@ export class WSClient {
       this.ws.onclose = () => {
         console.log('WebSocket disconnected');
         this.onStatus(false);
+        this.stopFlushLoop();
+        this.flush();
         this.scheduleReconnect();
       };
 
@@ -73,6 +80,29 @@ export class WSClient {
       console.error('Failed to create WebSocket:', e);
       this.scheduleReconnect();
     }
+  }
+
+  private startFlushLoop() {
+    this.stopFlushLoop();
+    const tick = () => {
+      this.flush();
+      this.flushTimer = window.setTimeout(tick, BATCH_INTERVAL_MS);
+    };
+    this.flushTimer = window.setTimeout(tick, BATCH_INTERVAL_MS);
+  }
+
+  private stopFlushLoop() {
+    if (this.flushTimer !== null) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+  }
+
+  private flush() {
+    if (this.buffer.length === 0) return;
+    const batch = this.buffer;
+    this.buffer = [];
+    this.onBatch(batch);
   }
 
   private scheduleReconnect() {
@@ -93,6 +123,8 @@ export class WSClient {
   }
 
   disconnect() {
+    this.stopFlushLoop();
+    this.flush();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
