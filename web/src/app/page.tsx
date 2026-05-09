@@ -32,7 +32,7 @@ export default function Home() {
     setSelectedMethods,
     setIsConnected,
     setIsPaused,
-    addRecord,
+    addRecords,
     fetchInitialRecords,
     recoverData,
     clearRecords,
@@ -46,11 +46,11 @@ export default function Home() {
     setContextDialogOpen(true);
   }, []);
 
-  // WebSocket connection with reconnect recovery
-  const onRecord = useCallback(addRecord, [addRecord]);
+  // WebSocket connection with reconnect recovery (batch mode)
+  const onBatch = useCallback(addRecords, [addRecords]);
   const onStatus = useCallback(setIsConnected, [setIsConnected]);
   const onReconnect = useCallback(recoverData, [recoverData]);
-  useWebSocket(onRecord, onStatus, onReconnect);
+  useWebSocket(onBatch, onStatus, onReconnect);
 
   // Fetch initial records (recent 100)
   useEffect(() => {
