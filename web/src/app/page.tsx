@@ -47,10 +47,7 @@ export default function Home() {
   }, []);
 
   // WebSocket connection with reconnect recovery (batch mode)
-  const onBatch = useCallback(addRecords, [addRecords]);
-  const onStatus = useCallback(setIsConnected, [setIsConnected]);
-  const onReconnect = useCallback(recoverData, [recoverData]);
-  useWebSocket(onBatch, onStatus, onReconnect);
+  useWebSocket(addRecords, setIsConnected, recoverData);
 
   // Fetch initial records (recent 100)
   useEffect(() => {

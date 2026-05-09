@@ -11,17 +11,29 @@ export function useWebSocket(
   onStatus: (connected: boolean) => void,
   onReconnect?: () => void
 ) {
+  const onBatchRef = useRef(onBatchRecords);
+  const onStatusRef = useRef(onStatus);
+  const onReconnectRef = useRef(onReconnect);
   const clientRef = useRef<WSClient | null>(null);
 
+  onBatchRef.current = onBatchRecords;
+  onStatusRef.current = onStatus;
+  onReconnectRef.current = onReconnect;
+
   useEffect(() => {
-    const client = new WSClient(WS_URL, onBatchRecords, onStatus, onReconnect);
+    const client = new WSClient(
+      WS_URL,
+      (records) => onBatchRef.current(records),
+      (connected) => onStatusRef.current(connected),
+      () => onReconnectRef.current?.()
+    );
     clientRef.current = client;
     client.connect();
 
     return () => {
       client.disconnect();
     };
-  }, [onBatchRecords, onStatus, onReconnect]);
+  }, []);
 
   return clientRef.current;
 }
