@@ -101,8 +101,8 @@ func DefaultConfig() *Config {
 		HTTPPort:      8080,
 		SOCKS5Port:    1080,
 		APIPort:       8888,
-		CertDir:       "~/.cursor-tap",
-		DataDir:       "~/.cursor-tap/data",
+		CertDir:       "~/.cursor-hijack",
+		DataDir:       "~/.cursor-hijack/data",
 		UpstreamProxy: "", // No upstream proxy by default
 	}
 }

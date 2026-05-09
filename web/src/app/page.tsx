@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRecords } from '@/hooks/use-records';
 import { useWebSocket } from '@/hooks/use-websocket';
 import { FilterSidebar } from '@/components/filter-sidebar';
@@ -8,6 +8,7 @@ import { SessionList } from '@/components/session-list';
 import { RecordList } from '@/components/record-list';
 import { DetailPanel } from '@/components/detail-panel';
 import { FilterBar } from '@/components/filter-bar';
+import { ContextDialog } from '@/components/context-dialog';
 import { Badge } from '@/components/ui/badge';
 import { ResizablePanels } from '@/components/resizable-panels';
 
@@ -36,6 +37,14 @@ export default function Home() {
     recoverData,
     clearRecords,
   } = useRecords();
+
+  const [contextDialogOpen, setContextDialogOpen] = useState(false);
+  const [contextSessionId, setContextSessionId] = useState<string | null>(null);
+
+  const handleViewContext = useCallback((sessionId: string) => {
+    setContextSessionId(sessionId);
+    setContextDialogOpen(true);
+  }, []);
 
   // WebSocket connection with reconnect recovery
   const onRecord = useCallback(addRecord, [addRecord]);
@@ -150,6 +159,7 @@ export default function Home() {
           sessions={sessions}
           selectedSession={selectedSession}
           onSelectSession={handleSelectSession}
+          onViewContext={handleViewContext}
         />
 
         {/* Record (frames) List */}
@@ -162,6 +172,14 @@ export default function Home() {
         {/* Detail Panel */}
         <DetailPanel record={selectedRecord} />
       </ResizablePanels>
+
+      {/* Context Dialog */}
+      <ContextDialog
+        open={contextDialogOpen}
+        onOpenChange={setContextDialogOpen}
+        records={allRecords}
+        sessionId={contextSessionId}
+      />
     </div>
   );
 }
