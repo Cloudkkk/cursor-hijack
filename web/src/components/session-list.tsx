@@ -4,12 +4,13 @@ import { memo } from 'react';
 import { SessionInfo, formatTimestamp } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUp, ArrowDown, MessageSquareText } from 'lucide-react';
 
 interface SessionListProps {
   sessions: SessionInfo[];
   selectedSession: string | null;
   onSelectSession: (sessionId: string | null) => void;
+  onViewContext?: (sessionId: string) => void;
 }
 
 // Format bytes to human readable
@@ -59,6 +60,7 @@ export const SessionList = memo(function SessionList({
   sessions,
   selectedSession,
   onSelectSession,
+  onViewContext,
 }: SessionListProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden border-r">
@@ -98,9 +100,8 @@ export const SessionList = memo(function SessionList({
               || session.host;
 
             return (
-              <button
+              <div
                 key={session.id}
-                onClick={() => onSelectSession(session.id)}
                 className={cn(
                   'w-full text-left px-3 py-2.5 rounded-md text-sm transition-colors border',
                   isSelected
@@ -108,71 +109,97 @@ export const SessionList = memo(function SessionList({
                     : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-gray-200 dark:border-gray-700'
                 )}
               >
-                {/* Main: method (primary) */}
-                <div className="font-semibold truncate text-sm" title={methodDisplay}>
-                  {methodDisplay}
-                </div>
-
-                {/* Service (secondary) */}
-                <div className={cn(
-                  'truncate text-xs mt-0.5',
-                  isSelected ? 'opacity-80' : 'text-gray-600 dark:text-gray-400'
-                )} title={serviceDisplay}>
-                  {serviceDisplay}
-                </div>
-
-                {/* Record count + Time */}
-                <div className={cn(
-                  'mt-1.5 flex items-center gap-2 text-xs',
-                  isSelected ? 'opacity-90' : 'text-gray-600 dark:text-gray-400'
-                )}>
-                  <span>{session.record_count} frames</span>
-                  <span>·</span>
-                  <span>{formatTimestamp(session.first_ts)}</span>
-                </div>
-
-                {/* Sizes row */}
-                <div className={cn(
-                  'mt-1 flex items-center gap-3 text-xs font-medium'
-                )}>
-                  <span className={cn(
-                    'flex items-center gap-0.5',
-                    isSelected ? 'text-blue-200' : 'text-blue-600'
-                  )}>
-                    <ArrowUp className="w-3 h-3" />
-                    {formatBytes(session.request_size)}
-                  </span>
-                  <span className={cn(
-                    'flex items-center gap-0.5',
-                    isSelected ? 'text-green-200' : 'text-green-600'
-                  )}>
-                    <ArrowDown className="w-3 h-3" />
-                    {formatBytes(session.response_size)}
-                  </span>
-                </div>
-
-                {/* Host */}
-                <div className={cn(
-                  'mt-1 truncate text-xs',
-                  isSelected ? 'opacity-70' : 'text-gray-500 dark:text-gray-500'
-                )} title={session.host}>
-                  {session.host}
-                </div>
-
-                {/* gRPC Preview */}
-                {session.grpc_preview && (
-                  <div className={cn(
-                    'mt-2 px-2 py-1.5 rounded text-[11px] font-mono leading-relaxed',
-                    isSelected 
-                      ? 'bg-white/10 text-white/80' 
-                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                  )}>
-                    <div className="line-clamp-2 break-all">
-                      {getPreviewText(session.grpc_preview, 100)}
-                    </div>
+                <div
+                  className="cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelectSession(session.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelectSession(session.id); }}
+                >
+                  {/* Main: method (primary) */}
+                  <div className="font-semibold truncate text-sm" title={methodDisplay}>
+                    {methodDisplay}
                   </div>
+
+                  {/* Service (secondary) */}
+                  <div className={cn(
+                    'truncate text-xs mt-0.5',
+                    isSelected ? 'opacity-80' : 'text-gray-600 dark:text-gray-400'
+                  )} title={serviceDisplay}>
+                    {serviceDisplay}
+                  </div>
+
+                  {/* Record count + Time */}
+                  <div className={cn(
+                    'mt-1.5 flex items-center gap-2 text-xs',
+                    isSelected ? 'opacity-90' : 'text-gray-600 dark:text-gray-400'
+                  )}>
+                    <span>{session.record_count} frames</span>
+                    <span>·</span>
+                    <span>{formatTimestamp(session.first_ts)}</span>
+                  </div>
+
+                  {/* Sizes row */}
+                  <div className={cn(
+                    'mt-1 flex items-center gap-3 text-xs font-medium'
+                  )}>
+                    <span className={cn(
+                      'flex items-center gap-0.5',
+                      isSelected ? 'text-blue-200' : 'text-blue-600'
+                    )}>
+                      <ArrowUp className="w-3 h-3" />
+                      {formatBytes(session.request_size)}
+                    </span>
+                    <span className={cn(
+                      'flex items-center gap-0.5',
+                      isSelected ? 'text-green-200' : 'text-green-600'
+                    )}>
+                      <ArrowDown className="w-3 h-3" />
+                      {formatBytes(session.response_size)}
+                    </span>
+                  </div>
+
+                  {/* Host */}
+                  <div className={cn(
+                    'mt-1 truncate text-xs',
+                    isSelected ? 'opacity-70' : 'text-gray-500 dark:text-gray-500'
+                  )} title={session.host}>
+                    {session.host}
+                  </div>
+
+                  {/* gRPC Preview */}
+                  {session.grpc_preview && (
+                    <div className={cn(
+                      'mt-2 px-2 py-1.5 rounded text-[11px] font-mono leading-relaxed',
+                      isSelected 
+                        ? 'bg-white/10 text-white/80' 
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                    )}>
+                      <div className="line-clamp-2 break-all">
+                        {getPreviewText(session.grpc_preview, 100)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* View Context button */}
+                {onViewContext && (
+                  <button
+                    type="button"
+                    className={cn(
+                      'mt-1.5 h-6 px-2 text-xs gap-1 inline-flex items-center rounded-md hover:bg-accent transition-colors',
+                      isSelected ? 'text-primary-foreground/80 hover:text-primary-foreground hover:bg-white/10' : 'text-muted-foreground hover:text-foreground'
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewContext(session.id);
+                    }}
+                  >
+                    <MessageSquareText className="w-3 h-3" />
+                    View Context
+                  </button>
                 )}
-              </button>
+              </div>
             );
           })}
 

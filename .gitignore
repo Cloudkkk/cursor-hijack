@@ -1,0 +1,22 @@
+# IDE
+.idea/
+
+# Go binary
+cursor-hijack
+cursor-tap
+
+# macOS
+.DS_Store
+
+# Next.js build output (root level)
+.next/
+
+# Dependency directories
+node_modules/
+
+# Traffic logs
+*.jsonl
+
+# CA certificates (generated at runtime)
+*.crt
+*.key

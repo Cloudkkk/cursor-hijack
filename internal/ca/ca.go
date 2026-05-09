@@ -39,7 +39,7 @@ type Options struct {
 // DefaultOptions returns default CA options.
 func DefaultOptions() Options {
 	return Options{
-		CertDir:          "~/.cursor-tap",
+		CertDir:          "~/.cursor-hijack",
 		CAValidityYears:  100,  // 100 years - essentially permanent
 		CertValidityDays: 3650, // 10 years for server certs
 	}
@@ -127,8 +127,8 @@ func (ca *CA) generate() error {
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			CommonName:   "cursor-tap Root CA",
-			Organization: []string{"cursor-tap Proxy CA"},
+			CommonName:   "cursor-hijack Root CA",
+			Organization: []string{"cursor-hijack Proxy CA"},
 		},
 		NotBefore:             time.Now().Add(-24 * time.Hour),
 		NotAfter:              time.Now().AddDate(ca.caValidityYears, 0, 0),
@@ -288,7 +288,7 @@ func (ca *CA) generateCert(host string) (*tls.Certificate, error) {
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
 			CommonName:   host,
-			Organization: []string{"cursor-tap Proxy"},
+			Organization: []string{"cursor-hijack Proxy"},
 		},
 		NotBefore:             time.Now().Add(-24 * time.Hour),
 		NotAfter:              time.Now().AddDate(0, 0, ca.certValidityDays),
