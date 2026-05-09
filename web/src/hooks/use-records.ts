@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Record, SessionInfo } from '@/lib/types';
 
 const API_BASE = '';
@@ -22,8 +22,9 @@ export function useRecords() {
   const [selectedMethods, setSelectedMethods] = useState<Set<string>>(new Set());
   
   const recordsMap = useRef(new Map<string, Record>());
+  const isPausedRef = useRef(isPaused);
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
-  // Trim to MAX_RECORDS and keep recordsMap in sync
   const trimRecords = useCallback((recs: Record[]): Record[] => {
     if (recs.length <= MAX_RECORDS) return recs;
     const removed = recs.slice(0, recs.length - MAX_RECORDS);
@@ -33,9 +34,9 @@ export function useRecords() {
     return recs.slice(-MAX_RECORDS);
   }, []);
 
-  // Batch add records from WebSocket (O(1) dedup per record via Map)
+  // Stable reference — reads isPaused via ref so the callback identity never changes
   const addRecords = useCallback((batch: Record[]) => {
-    if (isPaused || batch.length === 0) return;
+    if (isPausedRef.current || batch.length === 0) return;
 
     const newOnes: Record[] = [];
     for (const r of batch) {
@@ -49,7 +50,7 @@ export function useRecords() {
     if (newOnes.length === 0) return;
 
     setRecords((prev) => trimRecords([...prev, ...newOnes]));
-  }, [isPaused, trimRecords]);
+  }, [trimRecords]);
 
   const selectedRecord = useMemo(() => {
     if (!selectedRecordKey) return null;
