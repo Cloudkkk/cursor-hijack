@@ -9,7 +9,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
@@ -284,13 +283,13 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-5xl !grid-rows-[auto_auto_1fr] max-h-[85vh]">
         <DialogHeader>
           <DialogTitle>Context Viewer</DialogTitle>
           <DialogDescription>{descText}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
           <Button
             variant={viewMode === 'conversation' ? 'default' : 'outline'}
             size="sm"
@@ -310,14 +309,14 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
           </div>
         </div>
 
-        <ScrollArea className="flex-1 min-h-0 -mx-6 px-6">
+        <div className="overflow-y-auto min-h-0 -mx-6 px-6">
           {viewMode === 'conversation' ? (
             <div className="space-y-3 pb-4">
               {conversation.length === 0 ? (
                 <div className="text-center text-muted-foreground py-12">
                   No conversation messages found in blob data.
                   <br />
-                  <span className="text-xs">Try switching to "All Frames" view to see raw data.</span>
+                  <span className="text-xs">Try switching to &quot;All Frames&quot; view to see raw data.</span>
                 </div>
               ) : (
                 conversation.map((msg, idx) => <MessageCard key={idx} message={msg} />)
@@ -346,7 +345,7 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
               )}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   );
