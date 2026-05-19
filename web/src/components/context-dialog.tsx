@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { Copy, Check, ChevronDown, ChevronRight, Download, Braces } from 'lucide-react';
 
 interface ParsedMessage {
   role: string;
@@ -189,6 +189,53 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
+function downloadFile(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function buildMarkdownLog(conversation: ParsedMessage[], sessionId: string | null): string {
+  const header = `# Context Log\n\n- Session: ${sessionId || 'All Sessions'}\n- Messages: ${conversation.length}\n- Exported: ${new Date().toISOString()}\n\n---\n\n`;
+
+  const body = conversation.map((m) => {
+    const roleLabel = m.role.charAt(0).toUpperCase() + m.role.slice(1);
+    return `## ${roleLabel}\n\n> Frame #${m.frameIndex} | ${m.timestamp} | ${m.rawSize} chars\n\n${m.content}`;
+  }).join('\n\n---\n\n');
+
+  return header + body;
+}
+
+function buildJsonLog(conversation: ParsedMessage[], frames: ParsedFrame[], sessionId: string | null): string {
+  return JSON.stringify({
+    session: sessionId,
+    exportedAt: new Date().toISOString(),
+    messageCount: conversation.length,
+    frameCount: frames.length,
+    conversation: conversation.map((m) => ({
+      role: m.role,
+      content: m.content,
+      frameIndex: m.frameIndex,
+      timestamp: m.timestamp,
+      rawSize: m.rawSize,
+    })),
+    frames: frames.map((f) => ({
+      frameIndex: f.frameIndex,
+      timestamp: f.timestamp,
+      direction: f.direction,
+      blobId: f.blobId,
+      blobDataSize: f.blobDataSize,
+      parsed: f.parsed,
+    })),
+  }, null, 2);
+}
+
 function CollapsibleSection({ title, badge, children, defaultOpen = false }: {
   title: string;
   badge?: string;
@@ -223,11 +270,34 @@ function getDefaultStyle() {
   return { bg: 'bg-gray-50 dark:bg-gray-900/30', border: 'border-gray-200 dark:border-gray-700', label: 'Unknown' };
 }
 
+function tryParseJson(text: string): object | null {
+  const trimmed = text.trim();
+  if ((!trimmed.startsWith('{') && !trimmed.startsWith('[')) || (!trimmed.endsWith('}') && !trimmed.endsWith(']'))) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === 'object' && parsed !== null) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function MessageCard({ message }: { message: ParsedMessage }) {
   const [expanded, setExpanded] = useState(false);
+  const [jsonFormatted, setJsonFormatted] = useState(false);
   const style = ROLE_STYLES[message.role] || getDefaultStyle();
   const isLong = message.content.length > 500;
-  const displayContent = isLong && !expanded ? message.content.slice(0, 500) + '...' : message.content;
+
+  const parsedJson = useMemo(() => tryParseJson(message.content), [message.content]);
+  const formattedJson = useMemo(() => {
+    if (!parsedJson) return '';
+    return JSON.stringify(parsedJson, null, 2);
+  }, [parsedJson]);
+
+  const activeContent = jsonFormatted ? formattedJson : message.content;
+  const displayContent = isLong && !expanded && !jsonFormatted ? message.content.slice(0, 500) + '...' : activeContent;
 
   return (
     <div className={`rounded-lg border ${style.border} ${style.bg} overflow-hidden`}>
@@ -237,13 +307,27 @@ function MessageCard({ message }: { message: ParsedMessage }) {
           <span className="text-xs text-muted-foreground">Frame #{message.frameIndex}</span>
           <span className="text-xs text-muted-foreground">{message.rawSize} chars</span>
         </div>
-        <CopyBtn text={message.content} />
+        <div className="flex items-center gap-1">
+          {parsedJson && (
+            <Button
+              variant={jsonFormatted ? 'default' : 'ghost'}
+              size="sm"
+              className="h-6 px-1.5 text-xs gap-1"
+              onClick={() => setJsonFormatted(!jsonFormatted)}
+              title={jsonFormatted ? 'Show raw' : 'Format JSON'}
+            >
+              <Braces className="w-3 h-3" />
+              {jsonFormatted ? 'Raw' : 'JSON'}
+            </Button>
+          )}
+          <CopyBtn text={activeContent} />
+        </div>
       </div>
       <div className="px-3 py-2">
         <pre className="text-xs font-mono whitespace-pre-wrap break-words leading-relaxed max-h-[400px] overflow-y-auto">
           {displayContent}
         </pre>
-        {isLong && (
+        {isLong && !jsonFormatted && (
           <button
             onClick={() => setExpanded(!expanded)}
             className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
@@ -355,8 +439,36 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
           >
             All Frames ({frames.length})
           </Button>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
             <CopyBtn text={allContent} />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs gap-1"
+              onClick={() => {
+                const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                const md = buildMarkdownLog(conversation, sessionId);
+                downloadFile(md, `context-${ts}.md`, 'text/markdown;charset=utf-8');
+              }}
+              title="Download as Markdown"
+            >
+              <Download className="w-3 h-3" />
+              .md
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs gap-1"
+              onClick={() => {
+                const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                const json = buildJsonLog(conversation, frames, sessionId);
+                downloadFile(json, `context-${ts}.json`, 'application/json;charset=utf-8');
+              }}
+              title="Download as JSON"
+            >
+              <Download className="w-3 h-3" />
+              .json
+            </Button>
           </div>
         </div>
 
