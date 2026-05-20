@@ -1,16 +1,13 @@
 # Cursor Hijack —— Cursor IDE 流量拦截与日志监控
 
-> Fork 自 [burpheart/cursor-tap](https://github.com/burpheart/cursor-tap)，原项目实现了 Cursor IDE 的 gRPC MITM 流量分析。本仓库在此基础上进行了功能增强和问题修复。
-
-中文 | [English](./README_EN.md)
+> Fork 自 [burpheart/cursor-tap](https://github.com/burpheart/cursor-tap)，原项目实现了 Cursor IDE 的 gRPC MITM 流量分析。
+本仓库在此基础上进行了功能增强和问题修复。
 
 Cursor IDE gRPC 中间人流量分析工具。可以解密 TLS、反序列化 protobuf、实时展示 AI 对话产生的 RPC 请求和响应。
 
-## 为什么做这个
-
-Cursor 和后端的通信全是 gRPC，走的 Connect Protocol，body 是二进制 protobuf。用 Burp 或 Fiddler 抓到的都是一堆看不懂的二进制。官方也没公开 proto 定义，想看 AI 对话的具体内容很麻烦。
-
-这个工具能把流量解密成可读的 JSON，还能实时看到 streaming 的每一帧。
+| Cursor | 日志 |
+|------|------|
+| <img width="808" height="1808" alt="image" src="https://github.com/user-attachments/assets/c97ea22c-dd8f-4fa1-9fad-7d4a87915374" />| <img width="2218" height="4084" alt="image (2)" src="https://dev.bsgun.cn/i/2026/05/20/219895.webp" />|
 
 ## 快速开始
 
