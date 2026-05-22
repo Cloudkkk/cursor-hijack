@@ -177,10 +177,6 @@ launchctl unsetenv HTTPS_PROXY
 
 并从 Cursor 的 `settings.json` 中删除 `http.proxy` 等相关配置，将 HTTP Compatibility Mode 改回 HTTP/2。
 
-## 相关文章
-
-- [Cursor 逆向笔记 1 —— 我是如何拦截解析 Cursor 的 gRPC 通信流量的](./cursor-reverse-notes-1.md)
-
 ## 致谢
 
 - [burpheart/cursor-tap](https://github.com/burpheart/cursor-tap) — 原始项目

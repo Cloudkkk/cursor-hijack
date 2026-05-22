@@ -20,3 +20,5 @@ node_modules/
 # CA certificates (generated at runtime)
 *.crt
 *.key
+
+.run/
