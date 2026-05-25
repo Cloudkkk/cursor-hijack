@@ -36,13 +36,13 @@ interface ParsedFrame {
 }
 
 function containsBinary(s: string): boolean {
-  // eslint-disable-next-line no-control-regex
+   
   return /[\x00-\x08\x0e-\x1f]/.test(s.slice(0, 1024));
 }
 
 function sanitizeString(s: string): string {
   if (!containsBinary(s)) return s;
-  // eslint-disable-next-line no-control-regex
+   
   return s.replace(/[\x00-\x08\x0e-\x1f]/g, '\uFFFD');
 }
 
@@ -204,33 +204,23 @@ function downloadFile(content: string, filename: string, mimeType: string) {
 async function exportAsImage(element: HTMLElement, filename: string) {
   const { default: html2canvas } = await import('html2canvas-pro');
 
-  const clone = element.cloneNode(true) as HTMLElement;
-  clone.style.position = 'absolute';
-  clone.style.left = '-9999px';
-  clone.style.top = '0';
-  clone.style.width = `${element.offsetWidth}px`;
-  clone.style.maxHeight = 'none';
-  clone.style.height = 'auto';
-  clone.style.overflow = 'visible';
-
-  // Remove all scroll constraints from children
-  clone.querySelectorAll('*').forEach((el) => {
-    const htmlEl = el as HTMLElement;
-    if (htmlEl.style) {
-      htmlEl.style.maxHeight = 'none';
-      htmlEl.style.overflow = 'visible';
-    }
-    htmlEl.classList.remove('overflow-y-auto', 'overflow-hidden', 'overflow-x-auto');
-  });
-
-  document.body.appendChild(clone);
+  // Temporarily make the element fully visible for capture (no scroll, no height constraints)
+  const originalStyles = {
+    maxHeight: element.style.maxHeight,
+    overflow: element.style.overflow,
+    height: element.style.height,
+  };
+  element.style.maxHeight = 'none';
+  element.style.overflow = 'visible';
+  element.style.height = 'auto';
 
   try {
-    const canvas = await html2canvas(clone, {
+    const canvas = await html2canvas(element, {
       useCORS: true,
       scale: 2,
       backgroundColor: '#ffffff',
       logging: false,
+      windowHeight: element.scrollHeight,
     });
 
     const dataUrl = canvas.toDataURL('image/png');
@@ -241,7 +231,9 @@ async function exportAsImage(element: HTMLElement, filename: string) {
     a.click();
     document.body.removeChild(a);
   } finally {
-    document.body.removeChild(clone);
+    element.style.maxHeight = originalStyles.maxHeight;
+    element.style.overflow = originalStyles.overflow;
+    element.style.height = originalStyles.height;
   }
 }
 
@@ -328,11 +320,12 @@ function tryParseJson(text: string): object | null {
   }
 }
 
-function MessageCard({ message }: { message: ParsedMessage }) {
+function MessageCard({ message, forceExpand = false }: { message: ParsedMessage; forceExpand?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [jsonFormatted, setJsonFormatted] = useState(false);
   const style = ROLE_STYLES[message.role] || getDefaultStyle();
   const isLong = message.content.length > 500;
+  const showFull = forceExpand || expanded;
 
   const parsedJson = useMemo(() => tryParseJson(message.content), [message.content]);
   const formattedJson = useMemo(() => {
@@ -340,8 +333,9 @@ function MessageCard({ message }: { message: ParsedMessage }) {
     return JSON.stringify(parsedJson, null, 2);
   }, [parsedJson]);
 
-  const activeContent = jsonFormatted ? formattedJson : message.content;
-  const displayContent = isLong && !expanded && !jsonFormatted ? message.content.slice(0, 500) + '...' : activeContent;
+  const showJson = jsonFormatted || (forceExpand && !!parsedJson);
+  const activeContent = showJson ? formattedJson : message.content;
+  const displayContent = isLong && !showFull && !showJson ? message.content.slice(0, 500) + '...' : activeContent;
 
   return (
     <div className={`rounded-lg border ${style.border} ${style.bg} overflow-hidden`}>
@@ -368,10 +362,10 @@ function MessageCard({ message }: { message: ParsedMessage }) {
         </div>
       </div>
       <div className="px-3 py-2">
-        <pre className="text-xs font-mono whitespace-pre-wrap break-words leading-relaxed max-h-[400px] overflow-y-auto">
+        <pre className={`text-xs font-mono whitespace-pre-wrap break-words leading-relaxed ${forceExpand ? '' : 'max-h-[400px] overflow-y-auto'}`}>
           {displayContent}
         </pre>
-        {isLong && !jsonFormatted && (
+        {isLong && !jsonFormatted && !forceExpand && (
           <button
             onClick={() => setExpanded(!expanded)}
             className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
@@ -384,7 +378,7 @@ function MessageCard({ message }: { message: ParsedMessage }) {
   );
 }
 
-function RawFrameCard({ frame }: { frame: ParsedFrame }) {
+function RawFrameCard({ frame, forceExpand = false }: { frame: ParsedFrame; forceExpand?: boolean }) {
   const displayData = useMemo(() => {
     if (frame.parsed) {
       try {
@@ -413,7 +407,7 @@ function RawFrameCard({ frame }: { frame: ParsedFrame }) {
       {frame.blobId && (
         <div className="text-xs text-muted-foreground font-mono truncate">blobId: {frame.blobId}</div>
       )}
-      <pre className="text-xs font-mono bg-muted rounded p-2 whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto">
+      <pre className={`text-xs font-mono bg-muted rounded p-2 whitespace-pre-wrap break-words ${forceExpand ? '' : 'max-h-[300px] overflow-y-auto'}`}>
         {displayData}
       </pre>
     </div>
@@ -443,6 +437,8 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
   const handleExportImage = useCallback(async () => {
     if (!contentRef.current || exporting) return;
     setExporting(true);
+    // Wait for React to re-render with forceExpand=true, then wait for paint
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 300))));
     try {
       const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
       await exportAsImage(contentRef.current, `context-${ts}.png`);
@@ -540,7 +536,7 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
           </div>
         </div>
 
-        <div ref={contentRef} className="overflow-y-auto min-h-0 -mx-6 px-6">
+        <div ref={contentRef} className={exporting ? '-mx-6 px-6' : 'overflow-y-auto min-h-0 -mx-6 px-6'}>
           {viewMode === 'conversation' ? (
             <div className="space-y-3 pb-4">
               {conversation.length === 0 ? (
@@ -550,7 +546,7 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
                   <span className="text-xs">Try switching to &quot;All Frames&quot; view to see raw data.</span>
                 </div>
               ) : (
-                conversation.map((msg, idx) => <MessageCard key={idx} message={msg} />)
+                conversation.map((msg, idx) => <MessageCard key={idx} message={msg} forceExpand={exporting} />)
               )}
             </div>
           ) : (
@@ -571,7 +567,7 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
                       ))}
                     </div>
                   </CollapsibleSection>
-                  {frames.map((frame, idx) => <RawFrameCard key={idx} frame={frame} />)}
+                  {frames.map((frame, idx) => <RawFrameCard key={idx} frame={frame} forceExpand={exporting} />)}
                 </>
               )}
             </div>
