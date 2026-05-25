@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useCallback } from 'react';
 import { Record as RecordEntry } from '@/lib/types';
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Copy, Check, ChevronDown, ChevronRight, Download, Braces } from 'lucide-react';
+import { Copy, Check, ChevronDown, ChevronRight, Download, Braces, ImageDown } from 'lucide-react';
 
 interface ParsedMessage {
   role: string;
@@ -199,6 +199,50 @@ function downloadFile(content: string, filename: string, mimeType: string) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+async function exportAsImage(element: HTMLElement, filename: string) {
+  const { default: html2canvas } = await import('html2canvas-pro');
+
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.style.position = 'absolute';
+  clone.style.left = '-9999px';
+  clone.style.top = '0';
+  clone.style.width = `${element.offsetWidth}px`;
+  clone.style.maxHeight = 'none';
+  clone.style.height = 'auto';
+  clone.style.overflow = 'visible';
+
+  // Remove all scroll constraints from children
+  clone.querySelectorAll('*').forEach((el) => {
+    const htmlEl = el as HTMLElement;
+    if (htmlEl.style) {
+      htmlEl.style.maxHeight = 'none';
+      htmlEl.style.overflow = 'visible';
+    }
+    htmlEl.classList.remove('overflow-y-auto', 'overflow-hidden', 'overflow-x-auto');
+  });
+
+  document.body.appendChild(clone);
+
+  try {
+    const canvas = await html2canvas(clone, {
+      useCORS: true,
+      scale: 2,
+      backgroundColor: '#ffffff',
+      logging: false,
+    });
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } finally {
+    document.body.removeChild(clone);
+  }
 }
 
 function buildMarkdownLog(conversation: ParsedMessage[], sessionId: string | null): string {
@@ -393,6 +437,19 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
   const conversation = useMemo(() => extractConversation(frames), [frames]);
 
   const [viewMode, setViewMode] = useState<'conversation' | 'frames'>('conversation');
+  const [exporting, setExporting] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const handleExportImage = useCallback(async () => {
+    if (!contentRef.current || exporting) return;
+    setExporting(true);
+    try {
+      const ts = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      await exportAsImage(contentRef.current, `context-${ts}.png`);
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting]);
 
   const allContent = useMemo(() => {
     if (viewMode === 'conversation') {
@@ -469,10 +526,21 @@ export function ContextDialog({ open, onOpenChange, records, sessionId }: Contex
               <Download className="w-3 h-3" />
               .json
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs gap-1"
+              onClick={handleExportImage}
+              disabled={exporting}
+              title="Export as long image (PNG)"
+            >
+              <ImageDown className="w-3 h-3" />
+              {exporting ? '...' : '.png'}
+            </Button>
           </div>
         </div>
 
-        <div className="overflow-y-auto min-h-0 -mx-6 px-6">
+        <div ref={contentRef} className="overflow-y-auto min-h-0 -mx-6 px-6">
           {viewMode === 'conversation' ? (
             <div className="space-y-3 pb-4">
               {conversation.length === 0 ? (

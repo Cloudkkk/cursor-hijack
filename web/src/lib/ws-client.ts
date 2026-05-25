@@ -73,11 +73,10 @@ export class WSClient {
         this.scheduleReconnect();
       };
 
-      this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      this.ws.onerror = () => {
+        // onerror fires before onclose; skip redundant logging since onclose handles reconnect
       };
-    } catch (e) {
-      console.error('Failed to create WebSocket:', e);
+    } catch {
       this.scheduleReconnect();
     }
   }

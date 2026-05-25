@@ -196,6 +196,7 @@ export function useRecords() {
   const fetchAndMergeRecords = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/records?limit=100`);
+      if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         const incoming = data as Record[];
