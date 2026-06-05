@@ -42617,7 +42617,7 @@ const file_agent_v1_proto_rawDesc = "" +
 	"\tSendInput\x12\x1a.agent.v1.SendInputRequest\x1a\x1b.agent.v1.SendInputResponse\"\x00\x12F\n" +
 	"\tResizePty\x12\x1a.agent.v1.ResizePtyRequest\x1a\x1b.agent.v1.ResizePtyResponse\"\x00\x12C\n" +
 	"\bListPtys\x12\x19.agent.v1.ListPtysRequest\x1a\x1a.agent.v1.ListPtysResponse\"\x00\x12O\n" +
-	"\fTerminatePty\x12\x1d.agent.v1.TerminatePtyRequest\x1a\x1e.agent.v1.TerminatePtyResponse\"\x00BCZAgithub.com/burpheart/cursor-tap/cursor_proto/gen/agent/v1;agentv1b\x06proto3"
+	"\fTerminatePty\x12\x1d.agent.v1.TerminatePtyRequest\x1a\x1e.agent.v1.TerminatePtyResponse\"\x00BEZCgithub.com/Cloudkkk/cursor-hijack/cursor_proto/gen/agent/v1;agentv1b\x06proto3"
 
 var (
 	file_agent_v1_proto_rawDescOnce sync.Once

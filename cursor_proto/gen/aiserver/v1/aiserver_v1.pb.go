@@ -246457,7 +246457,7 @@ const file_aiserver_v1_proto_rawDesc = "" +
 	"TrackModel\x12\x1e.aiserver.v1.TrackModelRequest\x1a\x1f.aiserver.v1.TrackModelResponse\"\x00\x12v\n" +
 	"\x17CallDiagnosticsExecutor\x12+.aiserver.v1.CallDiagnosticsExecutorRequest\x1a,.aiserver.v1.CallDiagnosticsExecutorResponse\"\x002\x8d\x01\n" +
 	"\x13WebProfilingService\x12v\n" +
-	"\x17SubmitInteractionWindow\x12+.aiserver.v1.SubmitInteractionWindowRequest\x1a,.aiserver.v1.SubmitInteractionWindowResponse\"\x00BIZGgithub.com/burpheart/cursor-tap/cursor_proto/gen/aiserver/v1;aiserverv1b\x06proto3"
+	"\x17SubmitInteractionWindow\x12+.aiserver.v1.SubmitInteractionWindowRequest\x1a,.aiserver.v1.SubmitInteractionWindowResponse\"\x00BKZIgithub.com/Cloudkkk/cursor-hijack/cursor_proto/gen/aiserver/v1;aiserverv1b\x06proto3"
 
 var (
 	file_aiserver_v1_proto_rawDescOnce sync.Once

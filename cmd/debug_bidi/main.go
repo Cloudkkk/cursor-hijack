@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	agentv1 "github.com/burpheart/cursor-tap/cursor_proto/gen/agent/v1"
+	agentv1 "github.com/Cloudkkk/cursor-hijack/cursor_proto/gen/agent/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )

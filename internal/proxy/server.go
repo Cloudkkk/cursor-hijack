@@ -16,11 +16,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/burpheart/cursor-tap/internal/api"
-	"github.com/burpheart/cursor-tap/internal/ca"
-	"github.com/burpheart/cursor-tap/internal/httpstream"
-	"github.com/burpheart/cursor-tap/internal/mitm"
-	"github.com/burpheart/cursor-tap/pkg/types"
+	"github.com/Cloudkkk/cursor-hijack/internal/api"
+	"github.com/Cloudkkk/cursor-hijack/internal/ca"
+	"github.com/Cloudkkk/cursor-hijack/internal/httpstream"
+	"github.com/Cloudkkk/cursor-hijack/internal/mitm"
+	"github.com/Cloudkkk/cursor-hijack/pkg/types"
 )
 
 // Server is the main proxy server that handles both HTTP and SOCKS5.

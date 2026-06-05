@@ -291,7 +291,7 @@ const file_internapi_v1_proto_rawDesc = "" +
 	"\x1fBLOB_TYPE_GIT_PR_DIFF_SELECTION\x10\x04\x12#\n" +
 	"\x1fBLOB_TYPE_SELECTED_PULL_REQUEST\x10\x05\x12\x12\n" +
 	"\x0eBLOB_TYPE_TEXT\x10\x06\x12\x17\n" +
-	"\x13BLOB_TYPE_RICH_TEXT\x10\aBKZIgithub.com/burpheart/cursor-tap/cursor_proto/gen/internapi/v1;internapiv1b\x06proto3"
+	"\x13BLOB_TYPE_RICH_TEXT\x10\aBMZKgithub.com/Cloudkkk/cursor-hijack/cursor_proto/gen/internapi/v1;internapiv1b\x06proto3"
 
 var (
 	file_internapi_v1_proto_rawDescOnce sync.Once

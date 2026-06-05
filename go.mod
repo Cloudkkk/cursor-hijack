@@ -1,4 +1,4 @@
-module github.com/burpheart/cursor-tap
+module github.com/Cloudkkk/cursor-hijack
 
 go 1.24.0
 

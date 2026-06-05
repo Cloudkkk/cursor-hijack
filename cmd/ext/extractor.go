@@ -837,7 +837,7 @@ func generateProtoFile(pkgName string, messages []Message, enums []Enum, service
 
 	goPackagePath := strings.ReplaceAll(pkgName, ".", "/")
 	goPackageName := strings.ReplaceAll(pkgName, ".", "")
-	sb.WriteString(fmt.Sprintf(`option go_package = "github.com/burpheart/cursor-tap/cursor_proto/gen/%s;%s";`+"\n\n", goPackagePath, goPackageName))
+	sb.WriteString(fmt.Sprintf(`option go_package = "github.com/Cloudkkk/cursor-hijack/cursor_proto/gen/%s;%s";`+"\n\n", goPackagePath, goPackageName))
 
 	// Build type tree
 	root := &TypeNode{Children: make(map[string]*TypeNode)}

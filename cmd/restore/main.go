@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	agentv1 "github.com/burpheart/cursor-tap/cursor_proto/gen/agent/v1"
+	agentv1 "github.com/Cloudkkk/cursor-hijack/cursor_proto/gen/agent/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"

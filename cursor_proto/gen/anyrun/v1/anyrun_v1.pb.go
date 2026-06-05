@@ -6270,7 +6270,7 @@ const file_anyrun_v1_proto_rawDesc = "" +
 	"\x1aSNAPSHOT_STATE_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17SNAPSHOT_STATE_CREATING\x10\x01\x12\x18\n" +
 	"\x14SNAPSHOT_STATE_READY\x10\x02\x12\x19\n" +
-	"\x15SNAPSHOT_STATE_FAILED\x10\x03BEZCgithub.com/burpheart/cursor-tap/cursor_proto/gen/anyrun/v1;anyrunv1b\x06proto3"
+	"\x15SNAPSHOT_STATE_FAILED\x10\x03BGZEgithub.com/Cloudkkk/cursor-hijack/cursor_proto/gen/anyrun/v1;anyrunv1b\x06proto3"
 
 var (
 	file_anyrun_v1_proto_rawDescOnce sync.Once

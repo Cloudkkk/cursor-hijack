@@ -7,8 +7,8 @@ import (
 	"net"
 	"sync"
 
-	"github.com/burpheart/cursor-tap/internal/ca"
-	"github.com/burpheart/cursor-tap/internal/httpstream"
+	"github.com/Cloudkkk/cursor-hijack/internal/ca"
+	"github.com/Cloudkkk/cursor-hijack/internal/httpstream"
 )
 
 // Interceptor handles TLS MITM interception.
