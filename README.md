@@ -17,7 +17,67 @@ Cursor IDE gRPC 中间人流量分析工具。可以解密 TLS、反序列化 pr
 - Node.js 18+
 - macOS / Linux / Windows
 
-### 1. 克隆并构建
+### 一键启动（推荐）
+
+克隆仓库后直接运行，**首次安装也可以直接使用**，无需任何手动配置：
+
+```bash
+git clone https://github.com/Cloudkkk/cursor-hijack.git
+cd cursor-hijack
+./start.sh
+```
+
+脚本会自动完成所有工作：
+
+1. **检测并构建** Go 二进制（源码有变化时自动重建）
+2. **安装 Web 依赖**（首次运行时自动 `npm install`）
+3. **关闭已运行的 Cursor** 进程
+4. **修改 `settings.json`**（启用 proxy 配置、开启 HTTP/1.1 模式）
+5. **启动 cursor-hijack 代理 + Web UI**
+6. **注入 launchctl 环境变量**（CA 证书、代理地址）
+7. **以 `--proxy-server` 参数启动 Cursor**
+
+按 **Ctrl+C** 停止时，脚本会自动还原 `settings.json`、清除环境变量、关闭所有相关进程。
+
+#### 常用参数
+
+```bash
+# 指定要在 Cursor 中打开的项目目录
+./start.sh --project /path/to/your/project
+
+# 同时录制流量到文件
+./start.sh --record
+
+# 通过上游代理访问网络
+./start.sh --upstream socks5://127.0.0.1:7890
+
+# 只启动代理 + Web UI，不动 Cursor
+./start.sh --no-cursor
+
+# 端口被残留进程占用时，强制释放
+./start.sh --force
+
+# 组合使用
+./start.sh --project ~/my-project --upstream socks5://127.0.0.1:7890 --record
+```
+
+> **提示**：脚本退出（Ctrl+C）时会从备份还原 `settings.json` 到启动前的状态，下次 `start.sh` 启动时会重新注入配置。
+
+### 验证
+
+在 Cursor 中发起一次 AI 对话，然后：
+
+- **终端**：应该能看到 TLS 握手和 HTTP 解析日志
+- **Web UI**：左侧 Services 列表会出现 `BidiService`（对话流）和 `AgentService`（Agent 模式），点击可查看完整的请求/响应 JSON
+
+## 手动配置（可选）
+
+如果你不想用一键脚本，或者想了解脚本背后做了什么，可以按以下步骤手动配置。
+
+<details>
+<summary>点击展开手动配置步骤</summary>
+
+### 1. 构建
 
 ```bash
 git clone https://github.com/Cloudkkk/cursor-hijack.git
@@ -78,7 +138,6 @@ npm run dev
 cursor-hijack 首次启动会自动生成 CA 证书到 `~/.cursor-hijack/ca/ca.crt`。需要让 Cursor 信任这个证书：
 
 ```bash
-# 注入环境变量到 macOS launchd（影响所有后续启动的应用）
 launchctl setenv NODE_EXTRA_CA_CERTS ~/.cursor-hijack/ca/ca.crt
 launchctl setenv HTTP_PROXY http://127.0.0.1:8080
 launchctl setenv HTTPS_PROXY http://127.0.0.1:8080
@@ -87,7 +146,6 @@ launchctl setenv HTTPS_PROXY http://127.0.0.1:8080
 Linux/Windows 用户直接在启动 Cursor 前设置环境变量：
 
 ```bash
-# Linux
 export NODE_EXTRA_CA_CERTS=~/.cursor-hijack/ca/ca.crt
 export HTTP_PROXY=http://127.0.0.1:8080
 export HTTPS_PROXY=http://127.0.0.1:8080
@@ -122,12 +180,7 @@ sleep 3
 
 > **注意**：必须用二进制路径直接启动，不能用 `open -a Cursor`，否则 macOS LaunchServices 会复用已有进程，环境变量和启动参数都会丢失。
 
-### 5. 验证
-
-在 Cursor 中发起一次 AI 对话，然后：
-
-- **终端**：应该能看到 TLS 握手和 HTTP 解析日志
-- **Web UI**：左侧 Services 列表会出现 `BidiService`（对话流）和 `AgentService`（Agent 模式），点击可查看完整的请求/响应 JSON
+</details>
 
 ## 命令参考
 

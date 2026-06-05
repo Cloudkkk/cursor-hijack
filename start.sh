@@ -91,21 +91,61 @@ check_port 1080 "SOCKS5 代理"
 check_port 9090 "API/WS"
 check_port 3000 "Web UI"
 
-# 修改 Cursor settings.json:打开三行 http.proxy 注释 + disableHttp2 设为 true
+# 修改 Cursor settings.json:确保 proxy + disableHttp2 配置存在且启用
+# 处理三种情况:行被 // 注释 → 去注释;行存在但值不对 → 替换;行完全不存在 → 注入
 patch_cursor_settings() {
   if [[ ! -f "$CURSOR_SETTINGS" ]]; then
     echo "  跳过 Cursor 设置(未找到 $CURSOR_SETTINGS)"
     return
   fi
   cp "$CURSOR_SETTINGS" "$CURSOR_SETTINGS_BAK"
-  # 用 sed 原地修改:三个 http.* 行去掉前导 // ,disableHttp2 改 true
-  # macOS sed 需要 -i ''
+
+  # 第一轮:去注释(兼容之前 restore 留下的注释行)
   sed -i '' \
     -e 's|^\([[:space:]]*\)// \("http\.proxy":[[:space:]]*"http://127\.0\.0\.1:8080",\)|\1\2|' \
     -e 's|^\([[:space:]]*\)// \("http\.proxyStrictSSL":[[:space:]]*false,\)|\1\2|' \
     -e 's|^\([[:space:]]*\)// \("http\.proxySupport":[[:space:]]*"on",\)|\1\2|' \
+    "$CURSOR_SETTINGS"
+
+  # 第二轮:disableHttp2 已存在则改值
+  sed -i '' \
     -e 's|"cursor\.general\.disableHttp2":[[:space:]]*false|"cursor.general.disableHttp2": true|' \
     "$CURSOR_SETTINGS"
+
+  # 第三轮:如果某行仍不存在,用 python 注入到 JSON 末尾的 } 之前
+  local need_inject=0
+  grep -q '"http\.proxy"' "$CURSOR_SETTINGS" 2>/dev/null                    || need_inject=1
+  grep -q '"http\.proxyStrictSSL"' "$CURSOR_SETTINGS" 2>/dev/null           || need_inject=1
+  grep -q '"http\.proxySupport"' "$CURSOR_SETTINGS" 2>/dev/null             || need_inject=1
+  grep -q '"cursor\.general\.disableHttp2"' "$CURSOR_SETTINGS" 2>/dev/null  || need_inject=1
+
+  if [[ $need_inject -eq 1 ]]; then
+    python3 - "$CURSOR_SETTINGS" << 'PYEOF'
+import json, sys
+path = sys.argv[1]
+with open(path, "r") as f:
+    data = json.load(f)
+inject = {
+    "http.proxy": "http://127.0.0.1:8080",
+    "http.proxyStrictSSL": False,
+    "http.proxySupport": "on",
+    "cursor.general.disableHttp2": True,
+}
+changed = False
+for k, v in inject.items():
+    if k not in data:
+        data[k] = v
+        changed = True
+    elif k == "cursor.general.disableHttp2" and data[k] is not True:
+        data[k] = True
+        changed = True
+if changed:
+    with open(path, "w") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+        f.write("\n")
+PYEOF
+  fi
+
   echo "  已修改 Cursor settings.json (备份: $CURSOR_SETTINGS_BAK)"
 }
 
