@@ -7,7 +7,7 @@ Cursor IDE gRPC 中间人流量分析工具。可以解密 TLS、反序列化 pr
 
 | Cursor | 日志 |
 |------|------|
-| <img width="808" height="1808" alt="image" src="https://github.com/user-attachments/assets/c97ea22c-dd8f-4fa1-9fad-7d4a87915374" />| <img width="2218" height="4084" alt="image (2)" src="https://dev.bsgun.cn/i/2026/05/20/219895.webp" />|
+| <img width="808" height="1808" alt="image" src="https://github.com/user-attachments/assets/c97ea22c-dd8f-4fa1-9fad-7d4a87915374" />|<img width="2218" height="4084" alt="image (4)" src="https://github.com/user-attachments/assets/ab378781-7fbb-4520-a80c-22bbcf310ee1" />|
 
 ## 快速开始
 
